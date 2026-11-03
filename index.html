@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>DeskBuddy Pixel Studio</title>
+  <!-- Supabase CDN einbinden -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #0f111a;
@@ -11,6 +13,7 @@
       --accent: #00f2fe;
       --accent-glow: rgba(0, 242, 254, 0.4);
       --danger: #ff0844;
+      --success: #38ef7d;
       --text: #ffffff;
       --text-dim: #8b9bb4;
       --bezel: #242938;
@@ -71,7 +74,7 @@
 
     .controls {
       width: 100%;
-      max-width: 320px;
+      max-width: 330px;
       background: var(--card);
       border-radius: 16px;
       padding: 14px;
@@ -120,7 +123,7 @@
       background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
       color: #fff;
     }
-    button.save-btn {
+    button.community-btn {
       background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
       color: #05160e;
     }
@@ -131,7 +134,7 @@
       margin-top: 4px;
     }
     input#faceName {
-      flex: 1;
+      flex: 1.2;
       background: #0f111a;
       border: 1px solid #2b3248;
       border-radius: 8px;
@@ -144,12 +147,23 @@
       border-color: var(--accent);
     }
 
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+    }
     .presets-title {
       font-size: 0.75rem;
       color: var(--text-dim);
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-top: 4px;
+    }
+    .refresh-link {
+      font-size: 0.7rem;
+      color: var(--accent);
+      cursor: pointer;
+      text-decoration: underline;
     }
     .presets-row {
       display: flex;
@@ -176,6 +190,12 @@
       font-size: 0.75rem;
       cursor: pointer;
       white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .community-pill {
+      background: #182823;
+      border: 1px solid var(--success);
+      color: #7affb5;
     }
     .custom-pill span.del {
       color: var(--danger);
@@ -199,7 +219,7 @@
 
   <header>
     <h1>DESKBUDDY STUDIO</h1>
-    <p class="sub">1.28" Round Display Editor (24x24 Raster)</p>
+    <p class="sub">1.28" Round Display Editor & Community Hub</p>
   </header>
 
   <div class="viewport-wrapper">
@@ -217,14 +237,24 @@
       <button id="btnClear">Leeren</button>
     </div>
 
+    <!-- Namenseingabe und Speicheroptionen -->
     <div class="save-box">
       <input type="text" id="faceName" placeholder="Name für dein Face..." maxlength="16" autocomplete="off">
-      <button class="save-btn" onclick="saveFace()">Speichern</button>
+      <button onclick="saveFaceLocal()" title="Nur auf diesem Gerät speichern">Lokal</button>
+      <button class="community-btn" onclick="shareToCommunity()" title="Für die weltweite Community freigeben">🌐 Teilen</button>
     </div>
 
-    <div class="presets-title">Meine Gesichter</div>
+    <div class="section-header">
+      <div class="presets-title">Community Faces</div>
+      <span class="refresh-link" onclick="loadCommunityFaces()">Aktualisieren ⟳</span>
+    </div>
+    <div class="presets-row" id="communityList">
+      <span style="font-size: 0.75rem; color: var(--text-dim); padding: 4px;">Lade Community...</span>
+    </div>
+
+    <div class="presets-title">Meine Gesichter (Lokal)</div>
     <div class="presets-row" id="customList">
-      <span style="font-size: 0.75rem; color: var(--text-dim); padding: 4px;">Noch keine eigenen Faces.</span>
+      <span style="font-size: 0.75rem; color: var(--text-dim); padding: 4px;">Keine lokalen Entwürfe.</span>
     </div>
 
     <div class="presets-title">Standard-Vorlagen</div>
@@ -239,6 +269,11 @@
   </div>
 
   <script>
+    // --- Supabase Initialisierung ---
+    const SUPABASE_URL = 'https://mvhepmwnddmtuclfybpz.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable__MmFyZcf85OojDimzBQDwQ_QiIiw2gh';
+    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
     const GRID_SIZE = 24;
     const canvas = document.getElementById('pixelCanvas');
     const ctx = canvas.getContext('2d');
@@ -254,6 +289,7 @@
 
     let grid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill('#000000'));
 
+    // Farbpalette
     const palContainer = document.getElementById('palette');
     PALETTE.forEach((c, idx) => {
       const swatch = document.createElement('div');
@@ -345,14 +381,12 @@
 
       const lower = clean.toLowerCase().replace(/[^a-z0-9]/g, '');
       for (const bad of FORBIDDEN_WORDS) {
-        if (lower.includes(bad)) {
-          return "Dieser Name verstößt gegen die Richtlinien.";
-        }
+        if (lower.includes(bad)) return "Dieser Name verstößt gegen die Community-Richtlinien.";
       }
       return null;
     }
 
-    /* --- FILTER 2: Geometrische Erkennung (Hakenkreuze & Runen) --- */
+    /* --- FILTER 2: Geometrischer Symbol-Filter --- */
     function checkProhibitedPatterns() {
       const b = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
       let totalPixels = 0;
@@ -368,88 +402,67 @@
 
       if (totalPixels < 8) return null;
 
-      // Gerade Hakenkreuze (Armlänge 2 bis 5)
+      // Gerade Hakenkreuze
       for (let cy = 3; cy < GRID_SIZE - 3; cy++) {
         for (let cx = 3; cx < GRID_SIZE - 3; cx++) {
           if (!b[cy][cx]) continue;
-
           for (let L = 2; L <= 5; L++) {
             if (cx - L < 0 || cx + L >= GRID_SIZE || cy - L < 0 || cy + L >= GRID_SIZE) continue;
-
             const crossH = b[cy][cx - L] && b[cy][cx - 1] && b[cy][cx + 1] && b[cy][cx + L];
             const crossV = b[cy - L][cx] && b[cy - 1][cx] && b[cy + 1][cx] && b[cy + L][cx];
-
             if (crossH && crossV) {
               const cw = b[cy - L][cx + 1] && b[cy + L][cx - 1] && b[cy + 1][cx + L] && b[cy - 1][cx - L];
               const ccw = b[cy - L][cx - 1] && b[cy + L][cx + 1] && b[cy - 1][cx + L] && b[cy + 1][cx - L];
-
-              if (cw || ccw) {
-                return "Unzulässiges Symbol erkannt (Hakenkreuz-Muster). Speichern verweigert.";
-              }
+              if (cw || ccw) return "Unzulässiges Symbol erkannt (Hakenkreuz).";
             }
           }
         }
       }
 
-      // Diagonale / 45°-Hakenkreuze
+      // Gekippte Hakenkreuze
       for (let cy = 4; cy < GRID_SIZE - 4; cy++) {
         for (let cx = 4; cx < GRID_SIZE - 4; cx++) {
           if (!b[cy][cx]) continue;
-
           const diag1 = b[cy - 2][cx - 2] && b[cy - 1][cx - 1] && b[cy + 1][cx + 1] && b[cy + 2][cx + 2];
           const diag2 = b[cy - 2][cx + 2] && b[cy - 1][cx + 1] && b[cy + 1][cx - 1] && b[cy + 2][cx - 2];
-
           if (diag1 && diag2) {
             const armsDiag = (b[cy - 3][cx - 1] || b[cy - 2][cx]) &&
                              (b[cy + 3][cx + 1] || b[cy + 2][cx]) &&
                              (b[cy - 1][cx + 3] || b[cy][cx + 2]) &&
                              (b[cy + 1][cx - 3] || b[cy][cx - 2]);
-
-            if (armsDiag) {
-              return "Unzulässiges Symbol erkannt (Gekipptes Hakenkreuz). Speichern verweigert.";
-            }
+            if (armsDiag) return "Unzulässiges Symbol erkannt (Gekipptes Hakenkreuz).";
           }
         }
       }
 
-      // SS-Runen (Doppelblitz)
+      // SS-Runen
       for (let y = 3; y < GRID_SIZE - 6; y++) {
         for (let x = 2; x < GRID_SIZE - 7; x++) {
           const bolt1 = b[y][x+1] && b[y+1][x] && b[y+2][x+1] && b[y+3][x+2] && b[y+4][x+1] && b[y+5][x];
           const bolt2 = b[y][x+4] && b[y+1][x+3] && b[y+2][x+4] && b[y+3][x+5] && b[y+4][x+4] && b[y+5][x+3];
-
-          if (bolt1 && bolt2) {
-            return "Unzulässiges Symbol erkannt (SS-Runen-Muster). Speichern verweigert.";
-          }
+          if (bolt1 && bolt2) return "Unzulässiges Symbol erkannt (SS-Runen).";
         }
       }
-
       return null;
     }
 
-    /* --- SPEICHERN & LADEN --- */
+    /* --- LOKALER SPEICHER (localStorage) --- */
     function getStoredFaces() {
-      try {
-        return JSON.parse(localStorage.getItem('deskbuddy_faces') || '[]');
-      } catch (e) {
-        return [];
-      }
+      try { return JSON.parse(localStorage.getItem('deskbuddy_faces') || '[]'); } catch (e) { return []; }
     }
 
-    function renderStoredFaces() {
+    function renderLocalFaces() {
       const container = document.getElementById('customList');
       const faces = getStoredFaces();
       container.innerHTML = '';
-
       if (faces.length === 0) {
-        container.innerHTML = '<span style="font-size:0.75rem; color:var(--text-dim); padding:4px;">Noch keine eigenen Faces.</span>';
+        container.innerHTML = '<span style="font-size:0.75rem; color:var(--text-dim); padding:4px;">Keine lokalen Entwürfe.</span>';
         return;
       }
-
       faces.forEach((f, idx) => {
         const pill = document.createElement('div');
         pill.className = 'custom-pill';
-        pill.innerHTML = `<span>${f.name}</span> <span class="del" onclick="deleteFace(event, ${idx})">✕</span>`;
+        pill.innerHTML = `<span>${f.name}</span> <span class="del" onclick="deleteLocalFace(event, ${idx})">✕</span>`;
         pill.onclick = () => {
           grid = JSON.parse(JSON.stringify(f.grid));
           document.getElementById('faceName').value = f.name;
@@ -460,43 +473,95 @@
       });
     }
 
-    function saveFace() {
-      const nameInput = document.getElementById('faceName');
-      const name = nameInput.value;
-
-      const nameErr = validateName(name);
-      if (nameErr) {
-        showWarning(nameErr);
-        return;
-      }
-
-      const patternErr = checkProhibitedPatterns();
-      if (patternErr) {
-        showWarning(patternErr);
-        return;
-      }
+    function saveFaceLocal() {
+      const name = document.getElementById('faceName').value;
+      const nErr = validateName(name);
+      if (nErr) return showWarning(nErr);
+      const pErr = checkProhibitedPatterns();
+      if (pErr) return showWarning(pErr);
 
       const faces = getStoredFaces();
       const existingIdx = faces.findIndex(f => f.name.toLowerCase() === name.trim().toLowerCase());
-
-      if (existingIdx >= 0) {
-        faces[existingIdx].grid = JSON.parse(JSON.stringify(grid));
-      } else {
-        faces.push({ name: name.trim(), grid: JSON.parse(JSON.stringify(grid)) });
-      }
+      if (existingIdx >= 0) faces[existingIdx].grid = JSON.parse(JSON.stringify(grid));
+      else faces.push({ name: name.trim(), grid: JSON.parse(JSON.stringify(grid)) });
 
       localStorage.setItem('deskbuddy_faces', JSON.stringify(faces));
-      renderStoredFaces();
+      renderLocalFaces();
       hideWarning();
-      alert(`„${name.trim()}“ wurde erfolgreich gespeichert!`);
+      alert(`„${name.trim()}“ wurde lokal gespeichert!`);
     }
 
-    function deleteFace(event, idx) {
+    function deleteLocalFace(event, idx) {
       event.stopPropagation();
       const faces = getStoredFaces();
       faces.splice(idx, 1);
       localStorage.setItem('deskbuddy_faces', JSON.stringify(faces));
-      renderStoredFaces();
+      renderLocalFaces();
+    }
+
+    /* --- COMMUNITY SPEICHER (Supabase Live) --- */
+    async function shareToCommunity() {
+      if (!supabaseClient) return alert('Verbindung zur Datenbank nicht bereit.');
+      const name = document.getElementById('faceName').value;
+      const nErr = validateName(name);
+      if (nErr) return showWarning(nErr);
+      const pErr = checkProhibitedPatterns();
+      if (pErr) return showWarning(pErr);
+
+      try {
+        const { error } = await supabaseClient
+          .from('community_faces')
+          .insert([{ name: name.trim(), grid_data: grid }]);
+
+        if (error) throw error;
+
+        alert(`🎉 „${name.trim()}“ wurde erfolgreich in der Community veröffentlicht!`);
+        hideWarning();
+        loadCommunityFaces();
+      } catch (err) {
+        console.error(err);
+        alert('Upload fehlgeschlagen: ' + (err.message || 'Verbindungsfehler'));
+      }
+    }
+
+    async function loadCommunityFaces() {
+      const container = document.getElementById('communityList');
+      container.innerHTML = '<span style="font-size:0.75rem; color:var(--text-dim); padding:4px;">Lade Community...</span>';
+      if (!supabaseClient) return;
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('community_faces')
+          .select('name, grid_data')
+          .order('created_at', { ascending: false })
+          .limit(25);
+
+        if (error) throw error;
+        container.innerHTML = '';
+
+        if (!data || data.length === 0) {
+          container.innerHTML = '<span style="font-size:0.75rem; color:var(--text-dim); padding:4px;">Noch keine Community-Faces geteilt.</span>';
+          return;
+        }
+
+        data.forEach(item => {
+          const pill = document.createElement('div');
+          pill.className = 'custom-pill community-pill';
+          pill.innerHTML = `<span>🌐 ${item.name}</span>`;
+          pill.onclick = () => {
+            if (item.grid_data) {
+              grid = JSON.parse(JSON.stringify(item.grid_data));
+              document.getElementById('faceName').value = item.name;
+              hideWarning();
+              render();
+            }
+          };
+          container.appendChild(pill);
+        });
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = '<span style="font-size:0.75rem; color:var(--danger); padding:4px;">Fehler beim Laden.</span>';
+      }
     }
 
     function loadPreset(name) {
@@ -530,17 +595,15 @@
     }
 
     function exportData() {
-      const patternErr = checkProhibitedPatterns();
-      if (patternErr) {
-        showWarning(patternErr);
-        return;
-      }
+      const pErr = checkProhibitedPatterns();
+      if (pErr) return showWarning(pErr);
       const name = (document.getElementById('faceName').value.trim() || 'custom_face').replace(/[^a-zA-Z0-9_]/g, '_');
       alert(`Face „${name}“ steht bereit für den ESP32.`);
     }
 
     loadPreset('classic');
-    renderStoredFaces();
+    renderLocalFaces();
+    loadCommunityFaces();
   </script>
 </body>
 </html>
