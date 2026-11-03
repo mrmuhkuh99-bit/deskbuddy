@@ -367,82 +367,11 @@
       warningBox.style.display = 'none';
     }
 
-    /* --- FILTER 1: Namensprüfung --- */
-    const FORBIDDEN_WORDS = [
-      'hitler', 'nazi', 'ss', 'sa', 'hakenkreuz', 'swastika', 'nsdap', 'aryan',
-      'whore', 'hure', 'fuck', 'fick', 'arsch', 'penis', 'cock', 'pussy', 
-      'fotze', 'nigger', 'neger', 'kanake', 'bastard', 'spast'
-    ];
-
+    /* --- Namensprüfung (nur Mindestlänge und saubere Zeichen) --- */
     function validateName(name) {
       const clean = name.trim();
-      if (clean.length < 2) return "Der Name muss mindestens 2 Zeichen lang sein.";
+      if (clean.length < 2) return "Bitte gib dem Face einen Namen (mindestens 2 Zeichen).";
       if (!/^[a-zA-Z0-9äöüÄÖÜß _-]+$/.test(clean)) return "Nur Buchstaben, Zahlen und Bindestriche erlaubt.";
-
-      const lower = clean.toLowerCase().replace(/[^a-z0-9]/g, '');
-      for (const bad of FORBIDDEN_WORDS) {
-        if (lower.includes(bad)) return "Dieser Name verstößt gegen die Community-Richtlinien.";
-      }
-      return null;
-    }
-
-    /* --- FILTER 2: Geometrischer Symbol-Filter --- */
-    function checkProhibitedPatterns() {
-      const b = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
-      let totalPixels = 0;
-
-      for (let y = 0; y < GRID_SIZE; y++) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-          if (grid[y][x] !== '#000000') {
-            b[y][x] = 1;
-            totalPixels++;
-          }
-        }
-      }
-
-      if (totalPixels < 8) return null;
-
-      // Gerade Hakenkreuze
-      for (let cy = 3; cy < GRID_SIZE - 3; cy++) {
-        for (let cx = 3; cx < GRID_SIZE - 3; cx++) {
-          if (!b[cy][cx]) continue;
-          for (let L = 2; L <= 5; L++) {
-            if (cx - L < 0 || cx + L >= GRID_SIZE || cy - L < 0 || cy + L >= GRID_SIZE) continue;
-            const crossH = b[cy][cx - L] && b[cy][cx - 1] && b[cy][cx + 1] && b[cy][cx + L];
-            const crossV = b[cy - L][cx] && b[cy - 1][cx] && b[cy + 1][cx] && b[cy + L][cx];
-            if (crossH && crossV) {
-              const cw = b[cy - L][cx + 1] && b[cy + L][cx - 1] && b[cy + 1][cx + L] && b[cy - 1][cx - L];
-              const ccw = b[cy - L][cx - 1] && b[cy + L][cx + 1] && b[cy - 1][cx + L] && b[cy + 1][cx - L];
-              if (cw || ccw) return "Unzulässiges Symbol erkannt (Hakenkreuz).";
-            }
-          }
-        }
-      }
-
-      // Gekippte Hakenkreuze
-      for (let cy = 4; cy < GRID_SIZE - 4; cy++) {
-        for (let cx = 4; cx < GRID_SIZE - 4; cx++) {
-          if (!b[cy][cx]) continue;
-          const diag1 = b[cy - 2][cx - 2] && b[cy - 1][cx - 1] && b[cy + 1][cx + 1] && b[cy + 2][cx + 2];
-          const diag2 = b[cy - 2][cx + 2] && b[cy - 1][cx + 1] && b[cy + 1][cx - 1] && b[cy + 2][cx - 2];
-          if (diag1 && diag2) {
-            const armsDiag = (b[cy - 3][cx - 1] || b[cy - 2][cx]) &&
-                             (b[cy + 3][cx + 1] || b[cy + 2][cx]) &&
-                             (b[cy - 1][cx + 3] || b[cy][cx + 2]) &&
-                             (b[cy + 1][cx - 3] || b[cy][cx - 2]);
-            if (armsDiag) return "Unzulässiges Symbol erkannt (Gekipptes Hakenkreuz).";
-          }
-        }
-      }
-
-      // SS-Runen
-      for (let y = 3; y < GRID_SIZE - 6; y++) {
-        for (let x = 2; x < GRID_SIZE - 7; x++) {
-          const bolt1 = b[y][x+1] && b[y+1][x] && b[y+2][x+1] && b[y+3][x+2] && b[y+4][x+1] && b[y+5][x];
-          const bolt2 = b[y][x+4] && b[y+1][x+3] && b[y+2][x+4] && b[y+3][x+5] && b[y+4][x+4] && b[y+5][x+3];
-          if (bolt1 && bolt2) return "Unzulässiges Symbol erkannt (SS-Runen).";
-        }
-      }
       return null;
     }
 
@@ -477,8 +406,6 @@
       const name = document.getElementById('faceName').value;
       const nErr = validateName(name);
       if (nErr) return showWarning(nErr);
-      const pErr = checkProhibitedPatterns();
-      if (pErr) return showWarning(pErr);
 
       const faces = getStoredFaces();
       const existingIdx = faces.findIndex(f => f.name.toLowerCase() === name.trim().toLowerCase());
@@ -505,8 +432,6 @@
       const name = document.getElementById('faceName').value;
       const nErr = validateName(name);
       if (nErr) return showWarning(nErr);
-      const pErr = checkProhibitedPatterns();
-      if (pErr) return showWarning(pErr);
 
       try {
         const { error } = await supabaseClient
@@ -515,7 +440,7 @@
 
         if (error) throw error;
 
-        alert(`🎉 „${name.trim()}“ wurde erfolgreich in der Community veröffentlicht!`);
+        alert(`🎉 „${name.trim()}“ wurde erfolgreich in der Community geteilt!`);
         hideWarning();
         loadCommunityFaces();
       } catch (err) {
@@ -595,8 +520,6 @@
     }
 
     function exportData() {
-      const pErr = checkProhibitedPatterns();
-      if (pErr) return showWarning(pErr);
       const name = (document.getElementById('faceName').value.trim() || 'custom_face').replace(/[^a-zA-Z0-9_]/g, '_');
       alert(`Face „${name}“ steht bereit für den ESP32.`);
     }
