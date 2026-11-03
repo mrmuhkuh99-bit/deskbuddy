@@ -125,7 +125,6 @@
       color: #05160e;
     }
 
-    /* Namens-Eingabe */
     .save-box {
       display: flex;
       gap: 6px;
@@ -184,7 +183,6 @@
       padding-left: 2px;
     }
 
-    /* Warnhinweis */
     .warning-msg {
       background: rgba(255, 8, 68, 0.15);
       border: 1px solid var(--danger);
@@ -219,7 +217,6 @@
       <button id="btnClear">Leeren</button>
     </div>
 
-    <!-- Eigene Kreation mit Namen speichern -->
     <div class="save-box">
       <input type="text" id="faceName" placeholder="Name für dein Face..." maxlength="16" autocomplete="off">
       <button class="save-btn" onclick="saveFace()">Speichern</button>
@@ -257,7 +254,6 @@
 
     let grid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill('#000000'));
 
-    // Farbpalette
     const palContainer = document.getElementById('palette');
     PALETTE.forEach((c, idx) => {
       const swatch = document.createElement('div');
@@ -335,7 +331,7 @@
       warningBox.style.display = 'none';
     }
 
-    /* --- FILTER 1: Namensprüfung (Blacklist & Syntax) --- */
+    /* --- FILTER 1: Namensprüfung --- */
     const FORBIDDEN_WORDS = [
       'hitler', 'nazi', 'ss', 'sa', 'hakenkreuz', 'swastika', 'nsdap', 'aryan',
       'whore', 'hure', 'fuck', 'fick', 'arsch', 'penis', 'cock', 'pussy', 
@@ -356,61 +352,82 @@
       return null;
     }
 
-    /* --- FILTER 2: Display-Prüfung (Verbotene Pixel-Muster) --- */
+    /* --- FILTER 2: Geometrische Erkennung (Hakenkreuze & Runen) --- */
     function checkProhibitedPatterns() {
-      // 1. Binärmaske des Rasters (Pixel aktiv = 1, schwarz = 0)
-      const bin = [];
+      const b = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill(0));
+      let totalPixels = 0;
+
       for (let y = 0; y < GRID_SIZE; y++) {
-        bin[y] = [];
         for (let x = 0; x < GRID_SIZE; x++) {
-          bin[y][x] = (grid[y][x] !== '#000000') ? 1 : 0;
+          if (grid[y][x] !== '#000000') {
+            b[y][x] = 1;
+            totalPixels++;
+          }
         }
       }
 
-      // 2. Geometrische Hakenkreuz-Erkennung über Kernbereiche (10x10 bis 18x18 Box)
-      // Prüft das Vorhandensein eines zentralen Kreuzes mit 4 rechtwinkligen Schenkeln
-      for (let cy = 5; cy <= 18; cy++) {
-        for (let cx = 5; cx <= 18; cx++) {
-          if (bin[cy][cx] === 1) {
-            // Horizontale und vertikale Achse um den Punkt
-            const hLine = (bin[cy][cx-2] && bin[cy][cx-1] && bin[cy][cx+1] && bin[cy][cx+2]);
-            const vLine = (bin[cy-2][cx] && bin[cy-1][cx] && bin[cy+1][cx] && bin[cy+2][cx]);
+      if (totalPixels < 8) return null;
 
-            if (hLine && vLine) {
-              // Gezielt nach den 4 abknickenden Schenkeln suchen (links- oder rechtsdrehend)
-              const armsClockwise = (bin[cy-2][cx+1] || bin[cy-2][cx+2]) &&
-                                    (bin[cy+2][cx-1] || bin[cy+2][cx-2]) &&
-                                    (bin[cy+1][cx+2] || bin[cy+2][cx+2]) &&
-                                    (bin[cy-1][cx-2] || bin[cy-2][cx-2]);
+      // Gerade Hakenkreuze (Armlänge 2 bis 5)
+      for (let cy = 3; cy < GRID_SIZE - 3; cy++) {
+        for (let cx = 3; cx < GRID_SIZE - 3; cx++) {
+          if (!b[cy][cx]) continue;
 
-              const armsCounterClockwise = (bin[cy-2][cx-1] || bin[cy-2][cx-2]) &&
-                                           (bin[cy+2][cx+1] || bin[cy+2][cx+2]) &&
-                                           (bin[cy-1][cx+2] || bin[cy-2][cx+2]) &&
-                                           (bin[cy+1][cx-2] || bin[cy+2][cx-2]);
+          for (let L = 2; L <= 5; L++) {
+            if (cx - L < 0 || cx + L >= GRID_SIZE || cy - L < 0 || cy + L >= GRID_SIZE) continue;
 
-              if (armsClockwise || armsCounterClockwise) {
-                return "Dieses Display-Muster ist nicht zulässig.";
+            const crossH = b[cy][cx - L] && b[cy][cx - 1] && b[cy][cx + 1] && b[cy][cx + L];
+            const crossV = b[cy - L][cx] && b[cy - 1][cx] && b[cy + 1][cx] && b[cy + L][cx];
+
+            if (crossH && crossV) {
+              const cw = b[cy - L][cx + 1] && b[cy + L][cx - 1] && b[cy + 1][cx + L] && b[cy - 1][cx - L];
+              const ccw = b[cy - L][cx - 1] && b[cy + L][cx + 1] && b[cy - 1][cx + L] && b[cy + 1][cx - L];
+
+              if (cw || ccw) {
+                return "Unzulässiges Symbol erkannt (Hakenkreuz-Muster). Speichern verweigert.";
               }
             }
           }
         }
       }
 
-      // 3. Mindestinhalt prüfen (verhindert das Speichern eines völlig leeren Displays)
-      let activePixels = 0;
-      for (let y = 0; y < GRID_SIZE; y++) {
-        for (let x = 0; x < GRID_SIZE; x++) {
-          if (bin[y][x] === 1) activePixels++;
+      // Diagonale / 45°-Hakenkreuze
+      for (let cy = 4; cy < GRID_SIZE - 4; cy++) {
+        for (let cx = 4; cx < GRID_SIZE - 4; cx++) {
+          if (!b[cy][cx]) continue;
+
+          const diag1 = b[cy - 2][cx - 2] && b[cy - 1][cx - 1] && b[cy + 1][cx + 1] && b[cy + 2][cx + 2];
+          const diag2 = b[cy - 2][cx + 2] && b[cy - 1][cx + 1] && b[cy + 1][cx - 1] && b[cy + 2][cx - 2];
+
+          if (diag1 && diag2) {
+            const armsDiag = (b[cy - 3][cx - 1] || b[cy - 2][cx]) &&
+                             (b[cy + 3][cx + 1] || b[cy + 2][cx]) &&
+                             (b[cy - 1][cx + 3] || b[cy][cx + 2]) &&
+                             (b[cy + 1][cx - 3] || b[cy][cx - 2]);
+
+            if (armsDiag) {
+              return "Unzulässiges Symbol erkannt (Gekipptes Hakenkreuz). Speichern verweigert.";
+            }
+          }
         }
       }
-      if (activePixels < 4) {
-        return "Das Gesicht enthält zu wenige Pixel.";
+
+      // SS-Runen (Doppelblitz)
+      for (let y = 3; y < GRID_SIZE - 6; y++) {
+        for (let x = 2; x < GRID_SIZE - 7; x++) {
+          const bolt1 = b[y][x+1] && b[y+1][x] && b[y+2][x+1] && b[y+3][x+2] && b[y+4][x+1] && b[y+5][x];
+          const bolt2 = b[y][x+4] && b[y+1][x+3] && b[y+2][x+4] && b[y+3][x+5] && b[y+4][x+4] && b[y+5][x+3];
+
+          if (bolt1 && bolt2) {
+            return "Unzulässiges Symbol erkannt (SS-Runen-Muster). Speichern verweigert.";
+          }
+        }
       }
 
       return null;
     }
 
-    /* --- SPEICHER-VERWALTUNG (localStorage) --- */
+    /* --- SPEICHERN & LADEN --- */
     function getStoredFaces() {
       try {
         return JSON.parse(localStorage.getItem('deskbuddy_faces') || '[]');
@@ -447,21 +464,18 @@
       const nameInput = document.getElementById('faceName');
       const name = nameInput.value;
 
-      // 1. Text-Filter prüfen
       const nameErr = validateName(name);
       if (nameErr) {
         showWarning(nameErr);
         return;
       }
 
-      // 2. Display-Raster prüfen
       const patternErr = checkProhibitedPatterns();
       if (patternErr) {
         showWarning(patternErr);
         return;
       }
 
-      // 3. Speichern
       const faces = getStoredFaces();
       const existingIdx = faces.findIndex(f => f.name.toLowerCase() === name.trim().toLowerCase());
 
@@ -516,8 +530,13 @@
     }
 
     function exportData() {
+      const patternErr = checkProhibitedPatterns();
+      if (patternErr) {
+        showWarning(patternErr);
+        return;
+      }
       const name = (document.getElementById('faceName').value.trim() || 'custom_face').replace(/[^a-zA-Z0-9_]/g, '_');
-      alert(`Face „${name}“ steht zum Übertragen bereit.`);
+      alert(`Face „${name}“ steht bereit für den ESP32.`);
     }
 
     loadPreset('classic');
