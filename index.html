@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>DeskBuddy Pixel Studio</title>
+  <style>
+    :root {
+      --bg: #0f111a;
+      --card: #1a1d2e;
+      --accent: #00f2fe;
+      --accent-glow: rgba(0, 242, 254, 0.4);
+      --text: #ffffff;
+      --text-dim: #8b9bb4;
+      --bezel: #242938;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 1.3rem;
+      letter-spacing: 1px;
+      color: var(--accent);
+      text-shadow: 0 0 10px var(--accent-glow);
+    }
+    p.sub {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Runder Bezel & Canvas */
+    .viewport-wrapper {
+      position: relative;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #151821 0%, #08090d 100%);
+      box-shadow: 0 0 0 12px var(--bezel), 0 0 25px rgba(0,0,0,0.8), inset 0 0 15px rgba(0,0,0,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      margin-bottom: 20px;
+      touch-action: none;
+    }
+    canvas#pixelCanvas {
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      image-rendering: pixelated;
+    }
+
+    /* Farbwähler & Werkzeuge */
+    .controls {
+      width: 100%;
+      max-width: 320px;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .palette-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .color-swatch {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.1s, border-color 0.2s;
+    }
+    .color-swatch.active {
+      transform: scale(1.15);
+      border-color: #ffffff;
+      box-shadow: 0 0 8px rgba(255,255,255,0.6);
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      flex: 1;
+      padding: 10px 8px;
+      border-radius: 10px;
+      border: none;
+      background: #2b3248;
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:active {
+      background: #3a4360;
+    }
+    button.primary {
+      background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+      color: #fff;
+    }
+
+    /* Vorlagen Galerie */
+    .presets-title {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .presets-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .preset-btn {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      background: #222738;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>DESKBUDDY STUDIO</h1>
+    <p class="sub">1.28" Round Display Editor (24x24 Raster)</p>
+  </header>
+
+  <div class="viewport-wrapper">
+    <canvas id="pixelCanvas" width="24" height="24"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="palette-row" id="palette"></div>
+
+    <div class="btn-row">
+      <button id="btnPen" class="primary">Stift</button>
+      <button id="btnEraser">Radierer</button>
+      <button id="btnClear">Leeren</button>
+    </div>
+
+    <div class="presets-title">Vorlagen</div>
+    <div class="presets-row">
+      <button class="preset-btn" onclick="loadPreset('classic')">Standard</button>
+      <button class="preset-btn" onclick="loadPreset('happy')">Happy</button>
+      <button class="preset-btn" onclick="loadPreset('laser')">Fokus</button>
+      <button class="preset-btn" onclick="loadPreset('cat')">Kätzchen</button>
+    </div>
+
+    <button class="primary" style="margin-top: 4px;" onclick="exportData()">Export für ESP32</button>
+  </div>
+
+  <script>
+    const GRID_SIZE = 24;
+    const canvas = document.getElementById('pixelCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const PALETTE = [
+      '#00f2fe', '#4facfe', '#00ff87', '#ff0844', 
+      '#ffb199', '#f6d365', '#ffffff', '#000000'
+    ];
+    let currentColor = PALETTE[0];
+    let isDrawing = false;
+    let isErasing = false;
+
+    // 24x24 Pixelmatrix
+    let grid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill('#000000'));
+
+    // Farbpalette aufbauen
+    const palContainer = document.getElementById('palette');
+    PALETTE.forEach((c, idx) => {
+      const swatch = document.createElement('div');
+      swatch.className = 'color-swatch' + (idx === 0 ? ' active' : '');
+      swatch.style.background = c;
+      swatch.onclick = () => {
+        document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        currentColor = c;
+        setTool('pen');
+      };
+      palContainer.appendChild(swatch);
+    });
+
+    function setTool(tool) {
+      isErasing = (tool === 'eraser');
+      document.getElementById('btnPen').className = isErasing ? '' : 'primary';
+      document.getElementById('btnEraser').className = isErasing ? 'primary' : '';
+    }
+
+    document.getElementById('btnPen').onclick = () => setTool('pen');
+    document.getElementById('btnEraser').onclick = () => setTool('eraser');
+    document.getElementById('btnClear').onclick = () => {
+      grid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill('#000000'));
+      render();
+    };
+
+    function render() {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, GRID_SIZE, GRID_SIZE);
+
+      const r = GRID_SIZE / 2;
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          // Innerhalb des Kreisradius?
+          const dist = Math.hypot(x + 0.5 - r, y + 0.5 - r);
+          if (dist <= r - 0.2) {
+            ctx.fillStyle = grid[y][x];
+            ctx.fillRect(x, y, 1, 1);
+          } else {
+            ctx.fillStyle = '#0a0c10'; // Rand außerhalb der Safe-Zone
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      }
+    }
+
+    function drawPixel(e) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const scale = GRID_SIZE / rect.width;
+      const x = Math.floor((clientX - rect.left) * scale);
+      const y = Math.floor((clientY - rect.top) * scale);
+
+      if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
+        const dist = Math.hypot(x + 0.5 - (GRID_SIZE / 2), y + 0.5 - (GRID_SIZE / 2));
+        if (dist <= (GRID_SIZE / 2) - 0.2) {
+          grid[y][x] = isErasing ? '#000000' : currentColor;
+          render();
+        }
+      }
+    }
+
+    // Touch & Pointer Events
+    canvas.addEventListener('pointerdown', (e) => { isDrawing = true; drawPixel(e); });
+    window.addEventListener('pointermove', (e) => { if (isDrawing) drawPixel(e); });
+    window.addEventListener('pointerup', () => { isDrawing = false; });
+
+    // Vorlagen
+    function loadPreset(name) {
+      grid = Array(GRID_SIZE).fill(0).map(() => Array(GRID_SIZE).fill('#000000'));
+      if (name === 'classic') {
+        // Linkes Auge
+        for(let y=7; y<=14; y++) for(let x=4; x<=8; x++) grid[y][x] = '#00f2fe';
+        grid[8][8] = '#ffffff'; // Glanzpunkt
+        // Rechtes Auge
+        for(let y=7; y<=14; y++) for(let x=15; x<=19; x++) grid[y][x] = '#00f2fe';
+        grid[8][19] = '#ffffff';
+        // Mund
+        for(let x=10; x<=13; x++) grid[17][x] = '#00f2fe';
+      } else if (name === 'happy') {
+        // Fröhliche Bögen
+        [4,5,6,7,8].forEach((x, i) => { grid[11 - (i > 2 ? 4-i : i)][x] = '#00ff87'; });
+        [15,16,17,18,19].forEach((x, i) => { grid[11 - (i > 2 ? 4-i : i)][x] = '#00ff87'; });
+        for(let x=9; x<=14; x++) grid[17][x] = '#ffb199';
+      } else if (name === 'laser') {
+        // Laser Visor
+        for(let x=3; x<=20; x++) grid[11][x] = '#ff0844';
+        for(let x=5; x<=18; x++) grid[10][x] = '#ff0844';
+      } else if (name === 'cat') {
+        // Katzen-Ohren
+        grid[5][4] = '#f6d365'; grid[6][5] = '#f6d365';
+        grid[5][19] = '#f6d365'; grid[6][18] = '#f6d365';
+        // Augen
+        for(let y=9; y<=13; y++) for(let x=6; x<=8; x++) grid[y][x] = '#f6d365';
+        for(let y=9; y<=13; y++) for(let x=15; x<=17; x++) grid[y][x] = '#f6d365';
+        // Schnauze
+        grid[15][11] = '#ffb199'; grid[15][12] = '#ffb199';
+      }
+      render();
+    }
+
+    function exportData() {
+      alert("Grafik bereit! Der Datenexport als C-Array für den ESP32 kann kopiert werden.");
+    }
+
+    loadPreset('classic');
+  </script>
+</body>
+</html>
