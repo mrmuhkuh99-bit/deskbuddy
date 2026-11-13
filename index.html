@@ -63,6 +63,7 @@ label{display:block;font-size:13px;color:#94a3b8;margin:10px 0 6px}
 .sw{flex:none;width:40px;height:40px;border-radius:50%;border:0;padding:0}
 .sw.on{box-shadow:0 0 0 3px #0f172a,0 0 0 5px #fff}
 input[type=color]{width:40px;height:40px;border:0;padding:0;background:none}
+input[type=time]{display:block;width:100%;margin-top:6px;background:#020617;color:#fff;border:1px solid #334155;border-radius:12px;padding:10px;font:inherit;font-size:16px;color-scheme:dark}
 input[type=range]{width:100%;accent-color:var(--c)}
 #tTime{font:600 32px ui-monospace,monospace;text-align:center;margin:2px 0 12px;color:var(--c)}
 .code{font:600 22px ui-monospace,monospace;letter-spacing:.08em;text-align:center;color:var(--c);margin:4px 0 12px}
@@ -208,6 +209,17 @@ input[type=range]{width:100%;accent-color:var(--c)}
       <button class="btn" data-style="0">Klassisch</button><button class="btn" data-style="1">Rund</button><button class="btn" data-style="2">Minimal</button>
     </div></div>
     <div class="card"><h2>Helligkeit</h2><input type="range" id="bright" min="10" max="255"></div>
+    <div class="card"><h2>Nachtruhe</h2>
+      <p class="hint" style="margin-bottom:10px">In dieser Zeit schläft er bis morgens (Antippen weckt ihn kurz) und wird gedimmt.</p>
+      <div class="row">
+        <label style="margin:0;flex:1">von<input type="time" id="nStart" step="300"></label>
+        <label style="margin:0;flex:1">bis<input type="time" id="nEnd" step="300"></label>
+      </div>
+      <label for="nDim">Nachts dunkler: <b id="nDimLbl">50 %</b></label>
+      <input type="range" id="nDim" min="0" max="90" step="10">
+      <div class="row" style="margin-top:12px"><button class="btn" id="nSave">Speichern</button></div>
+      <p class="hint" style="margin-top:8px">Gleiche Zeit bei „von“ und „bis“ = keine Nachtruhe.</p>
+    </div>
     <div class="card"><h2>Fokus-Timer</h2>
       <div id="tTime">--:--</div>
       <div class="row"><button class="btn" id="tToggle">Start / Pause</button><button class="btn" id="tReset">Reset</button></div>
@@ -479,6 +491,10 @@ function paintBuddy() {
   document.querySelectorAll('[data-acc]').forEach(x => x.classList.toggle('on', +x.dataset.acc === (st.acc || 0)));
   if (document.activeElement !== $('bright')) $('bright').value = st.bright;
   if (document.activeElement !== $('tMin')) $('tMin').value = st.min;
+  if (st.nStart !== undefined && !nightDirty) {
+    $('nStart').value = minToTime(st.nStart); $('nEnd').value = minToTime(st.nEnd);
+    $('nDim').value = st.nDim; paintDim();
+  }
   const r = Math.max(0, st.remaining), h = Math.floor(r / 3600), m = Math.floor(r % 3600 / 60), sec = r % 60;
   $('tTime').textContent = (h ? h + ':' : '') + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + (st.running ? ' ▶' : ' ⏸');
 }
@@ -535,6 +551,19 @@ document.querySelectorAll('[data-style]').forEach(x => x.onclick = () => {
 });
 document.querySelectorAll('[data-cmd]').forEach(x => x.onclick = () => { cmd(x.dataset.cmd); toast('Gesendet'); });
 let brT; $('bright').oninput = e => { clearTimeout(brT); brT = setTimeout(() => cmd('set?bright=' + e.target.value), 150); };
+// Nachtruhe
+let nightDirty = false;
+function minToTime(m) { return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+function timeToMin(t) { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; }
+function paintDim() { const v = +$('nDim').value; $('nDimLbl').textContent = v ? v + ' %' : 'gar nicht dimmen'; }
+['nStart', 'nEnd'].forEach(id => $(id).oninput = () => { nightDirty = true; });
+$('nDim').oninput = () => { nightDirty = true; paintDim(); };
+$('nSave').onclick = () => {
+  cmd('set?nStart=' + timeToMin($('nStart').value) + '&nEnd=' + timeToMin($('nEnd').value) + '&nDim=' + $('nDim').value);
+  nightDirty = false;
+  toast('Nachtruhe gespeichert');
+};
+
 $('tToggle').onclick = () => cmd('timer?a=toggle');
 $('tReset').onclick = () => cmd('timer?a=reset');
 $('tSet').onclick = () => cmd('timer?a=set&min=' + $('tMin').value);
