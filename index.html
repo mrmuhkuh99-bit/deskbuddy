@@ -70,6 +70,19 @@ input[type=range]{width:100%;accent-color:var(--c)}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%) translateY(10px);background:#1e293b;border:1px solid #334155;padding:11px 16px;border-radius:14px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;max-width:90vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%)}
 #net{font-size:12px;color:#64748b;text-align:center;margin-top:18px}
+/* QR-Scanner */
+#scanner{position:fixed;inset:0;background:#000;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px}
+#scanner video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#scanner .frame{position:relative;width:min(70vw,280px);aspect-ratio:1;border:3px solid var(--c);border-radius:24px;box-shadow:0 0 0 100vmax rgba(0,0,0,.55)}
+#scanner p,#scanner button{position:relative}
+#scanner p{color:#fff;font-size:15px;text-align:center;margin:0}
+#scanner .btn{flex:none;min-width:160px}
+.or{display:flex;align-items:center;gap:10px;color:#64748b;font-size:12px;margin:14px 0}
+.or:before,.or:after{content:"";flex:1;height:1px;background:#1e293b}
+.gbtn{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#1f1f1f;font-weight:600}
+.gbtn svg{width:18px;height:18px}
+.acct{display:flex;align-items:center;gap:12px}
+.acct img{width:40px;height:40px;border-radius:50%;flex:none;background:#1e293b}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -84,6 +97,11 @@ input[type=range]{width:100%;accent-color:var(--c)}
     <label for="meName">Dein Name</label>
     <input type="text" id="meName" maxlength="16" placeholder="z.B. Max" autocomplete="given-name">
     <div class="row" style="margin-top:14px"><button class="btn main" id="meSave">Weiter</button></div>
+    <div class="cloudOnly" hidden>
+      <div class="or">oder</div>
+      <div class="row"><button class="btn gbtn loginBtn"><svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Mit Google anmelden</button></div>
+      <p class="hint" style="margin-top:10px">Dann hast du deine Buddys auf allen Geräten.</p>
+    </div>
   </div>
 </section>
 
@@ -93,6 +111,10 @@ input[type=range]{width:100%;accent-color:var(--c)}
     <h1>DeskBuddy</h1>
     <button class="iconbtn" id="openSettings" aria-label="Einstellungen">⚙️</button>
   </header>
+  <div class="card cloudHint" hidden>
+    <p class="hint" style="margin-bottom:10px">☁️ Melde dich an, dann hast du deine Buddys auf all deinen Geräten.</p>
+    <div class="row"><button class="btn gbtn loginBtn"><svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Mit Google anmelden</button></div>
+  </div>
   <div id="list"></div>
   <div class="row"><button class="btn main" id="openAdd">+ Buddy hinzufügen</button></div>
   <div class="row" style="margin-top:10px" id="installRow" hidden><button class="btn ghost" id="installBtn">📲 Als App installieren</button></div>
@@ -108,7 +130,9 @@ input[type=range]{width:100%;accent-color:var(--c)}
   <div class="card">
     <p class="hint">Den <b>Freunde-Code</b> findest du auf dem Uhr-Screen des DeskBuddys (10 Zeichen) oder als QR-Code einen Screen weiter.
     Mit dem <b>Besitzer-Code</b> (8 Zeichen) steuerst du deinen eigenen Buddy komplett.</p>
-    <label for="addCode">Code</label>
+    <div class="row" style="margin-top:12px"><button class="btn" id="scanBtn">📷 QR-Code scannen</button></div>
+    <div class="or">oder Code eintippen</div>
+    <label for="addCode" style="margin-top:0">Code</label>
     <input type="text" id="addCode" maxlength="14" placeholder="abcde-fghij" autocapitalize="off" autocomplete="off" spellcheck="false">
     <label for="addName">Name für diesen Buddy</label>
     <input type="text" id="addName" maxlength="20" placeholder="z.B. Lisa">
@@ -126,6 +150,17 @@ input[type=range]{width:100%;accent-color:var(--c)}
     <label for="setName" style="margin-top:0">Dein Name (steht bei deinen Nachrichten)</label>
     <input type="text" id="setName" maxlength="16">
     <div class="row" style="margin-top:12px"><button class="btn main" id="setSave">Speichern</button></div>
+  </div>
+  <div class="card cloudOnly" hidden>
+    <h2>Konto</h2>
+    <div id="acctOut">
+      <p class="hint" style="margin-bottom:12px">Mit Google anmelden: Deine Buddys werden gespeichert und sind auf allen deinen Geräten da.</p>
+      <div class="row"><button class="btn gbtn loginBtn"><svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Mit Google anmelden</button></div>
+    </div>
+    <div id="acctIn" hidden>
+      <div class="acct"><img id="acctPic" alt=""><div><div id="acctName" style="font-weight:600"></div><div id="acctMail" class="hint"></div></div></div>
+      <div class="row" style="margin-top:12px"><button class="btn ghost" id="logoutBtn">Abmelden</button></div>
+    </div>
   </div>
 </section>
 
@@ -187,6 +222,13 @@ input[type=range]{width:100%;accent-color:var(--c)}
   </div>
 </section>
 
+<div id="scanner" hidden>
+  <video id="scanVideo" playsinline muted></video>
+  <div class="frame"></div>
+  <p>Halte den QR-Code vom DeskBuddy<br>(Teilen-Screen) in den Rahmen</p>
+  <button class="btn" id="scanClose">Abbrechen</button>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -198,6 +240,10 @@ input[type=range]{width:100%;accent-color:var(--c)}
 //                              deskbuddy/<code>/state     (Status, alle 10 s)
 // ===================================================================
 const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+
+// Google-Login: Firebase-Konfiguration hier einfügen (siehe Anleitung).
+// Solange hier null steht, läuft die App ohne Login, nur auf diesem Gerät.
+const FIREBASE_CONFIG = null;
 const COLORS = ['00F0FF','22C55E','FFE000','FF7A00','FF2E93','A78BFA','FFFFFF'];
 const MOODS = [
   { id: 'happy',   e: '😊', t: 'Freuen' },
@@ -253,7 +299,7 @@ function route() {
   renderList();
   show('vHome');
 }
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', () => { stopScan(); route(); });
 document.querySelectorAll('.back').forEach(b => b.onclick = back);
 
 // ---------- Online-Status ----------
@@ -304,7 +350,7 @@ $('addSave').onclick = () => {
   if (buddies.some(b => b.code === code)) { toast('Den Buddy hast du schon'); return; }
   const b = { id: Math.random().toString(36).slice(2, 9), name, code, type: code.length === 8 ? 'owner' : 'share' };
   buddies.push(b);
-  save('db.buddies', buddies);
+  persist();
   subscribeBuddy(b);
   toast(name + ' hinzugefügt');
   location.replace('#b-' + b.id);
@@ -315,14 +361,14 @@ $('addName').onkeydown = e => { if (e.key === 'Enter') $('addSave').click(); };
 $('meSave').onclick = () => {
   const n = $('meName').value.trim();
   if (!n) { toast('Wie heißt du?'); return; }
-  me = n; save('db.me', me); route();
+  me = n; persist(); route();
 };
 $('meName').onkeydown = e => { if (e.key === 'Enter') $('meSave').click(); };
 $('openSettings').onclick = () => go('#settings');
 $('setSave').onclick = () => {
   const n = $('setName').value.trim();
   if (!n) return;
-  me = n; save('db.me', me); toast('Gespeichert'); back();
+  me = n; persist(); toast('Gespeichert'); back();
 };
 
 // ---------- Buddy-Seite ----------
@@ -441,7 +487,7 @@ $('bMenu').onclick = () => {
 };
 $('editSave').onclick = () => {
   const n = $('editName').value.trim(); if (!n) return;
-  current.name = n; save('db.buddies', buddies);
+  current.name = n; persist();
   $('bName').textContent = n; $('editPart').hidden = true; toast('Gespeichert');
 };
 let delArmed = 0;
@@ -449,7 +495,7 @@ $('editDelete').onclick = () => {
   if (Date.now() - delArmed > 3000) { delArmed = Date.now(); toast('Nochmal tippen zum Entfernen'); return; }
   unsubscribeBuddy(current);
   buddies = buddies.filter(b => b.id !== current.id);
-  save('db.buddies', buddies);
+  persist();
   toast('Entfernt');
   location.replace('#');
 };
@@ -508,9 +554,181 @@ $('installBtn').onclick = async () => {
 window.addEventListener('appinstalled', () => { $('installRow').hidden = true; toast('Installiert 🎉'); });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
+// ---------- QR-Code scannen ----------
+let scanStream = null, scanTimer = 0, detector = null;
+function loadScript(src) {
+  return new Promise((ok, fail) => { const t = document.createElement('script'); t.src = src; t.onload = ok; t.onerror = fail; document.head.appendChild(t); });
+}
+async function startScan() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Kamera wird hier nicht unterstützt'); return; }
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) { toast('Kein Zugriff auf die Kamera'); return; }
+  const v = $('scanVideo');
+  v.srcObject = scanStream;
+  $('scanner').hidden = false;
+  try { await v.play(); } catch (e) {}
+  if (!detector && 'BarcodeDetector' in window) {
+    try { detector = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { detector = null; }
+  }
+  if (!detector && !window.jsQR) {
+    try { await loadScript('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'); } catch (e) { toast('Scanner konnte nicht geladen werden'); stopScan(); return; }
+  }
+  const c = document.createElement('canvas'), cx = c.getContext('2d', { willReadFrequently: true });
+  const tick = async () => {
+    if (!scanStream) return;
+    let txt = null;
+    try {
+      if (detector) {
+        const r = await detector.detect(v);
+        if (r.length) txt = r[0].rawValue;
+      } else if (window.jsQR && v.videoWidth) {
+        const w = Math.min(640, v.videoWidth), h = Math.round(v.videoHeight * w / v.videoWidth);
+        c.width = w; c.height = h; cx.drawImage(v, 0, 0, w, h);
+        const r = jsQR(cx.getImageData(0, 0, w, h).data, w, h);
+        if (r) txt = r.data;
+      }
+    } catch (e) {}
+    if (txt && handleScan(txt)) return;
+    scanTimer = setTimeout(tick, 150);
+  };
+  tick();
+}
+function stopScan() {
+  clearTimeout(scanTimer);
+  if (scanStream) scanStream.getTracks().forEach(t => t.stop());
+  scanStream = null;
+  $('scanner').hidden = true;
+}
+function handleScan(txt) {
+  const m = txt.match(/#add=([a-z0-9-]+)/i);
+  const code = cleanCode(m ? m[1] : txt);
+  if (code.length !== 10 && code.length !== 8) return false;
+  stopScan();
+  if (navigator.vibrate) navigator.vibrate(60);
+  $('addCode').value = pretty(code);
+  toast('Code erkannt ✓');
+  setTimeout(() => $('addName').focus(), 100);
+  return true;
+}
+$('scanBtn').onclick = startScan;
+$('scanClose').onclick = stopScan;
+
+// ---------- Speichern (lokal + Cloud) ----------
+let fb = null, user = null;
+function persist() {
+  save('db.me', me);
+  save('db.buddies', buddies);
+  if (fb && user) {
+    fb.setDoc(fb.doc(fb.db, 'users', user.uid), { me, buddies, updated: Date.now() })
+      .catch(() => toast('Sync fehlgeschlagen'));
+  }
+}
+
+// Nach Änderungen von einem anderen Gerät die Ansicht aktualisieren
+function applyRemote() {
+  buddies.forEach(subscribeBuddy);
+  if (current) {
+    const still = buddies.find(b => b.id === current.id);
+    if (!still) { location.replace('#'); return; }
+    current = still;
+    $('bName').textContent = still.name;
+  }
+  if (!me) { route(); return; }
+  refresh();
+}
+
+// ---------- Google-Login (Firebase) ----------
+async function initCloud() {
+  if (!FIREBASE_CONFIG) return;
+  const V = '10.12.2', base = 'https://www.gstatic.com/firebasejs/' + V + '/';
+  let A, AU, FS;
+  try {
+    [A, AU, FS] = await Promise.all([
+      import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')
+    ]);
+  } catch (e) { console.warn('Firebase nicht geladen', e); return; }
+  const app = A.initializeApp(FIREBASE_CONFIG);
+  const auth = AU.getAuth(app);
+  const db = FS.getFirestore(app);
+  fb = { auth, db, doc: FS.doc, setDoc: FS.setDoc, AU };
+  document.querySelectorAll('.cloudOnly').forEach(e => e.hidden = false);
+  AU.getRedirectResult(auth).catch(() => {});
+
+  let unsub = null;
+  AU.onAuthStateChanged(auth, async u => {
+    user = u;
+    if (unsub) { unsub(); unsub = null; }
+    if (u) {
+      const ref = FS.doc(db, 'users', u.uid);
+      try {
+        const snap = await FS.getDoc(ref);
+        const remote = snap.exists() ? snap.data() : {};
+        // Buddys von diesem Gerät mit denen aus dem Konto zusammenführen
+        const merged = (remote.buddies || []).slice();
+        buddies.forEach(b => { if (!merged.some(x => x.code === b.code)) merged.push(b); });
+        buddies = merged;
+        me = remote.me || me || (u.displayName || '').split(' ')[0];
+        persist();
+      } catch (e) { toast('Konto konnte nicht geladen werden'); }
+      unsub = FS.onSnapshot(ref, s => {
+        if (!s.exists() || s.metadata.hasPendingWrites) return;
+        const d = s.data();
+        buddies = d.buddies || [];
+        if (d.me) me = d.me;
+        save('db.me', me); save('db.buddies', buddies);
+        applyRemote();
+      });
+      applyRemote();
+      if (!$('vWelcome').hidden || location.hash === '' || location.hash === '#') route();
+    }
+    paintAccount();
+  });
+}
+
+function paintAccount() {
+  document.querySelectorAll('.cloudHint').forEach(e => e.hidden = !fb || !!user);
+  $('acctOut').hidden = !!user;
+  $('acctIn').hidden = !user;
+  if (user) {
+    $('acctName').textContent = user.displayName || 'Angemeldet';
+    $('acctMail').textContent = user.email || '';
+    if (user.photoURL) $('acctPic').src = user.photoURL;
+  }
+}
+
+async function login() {
+  if (!fb) { toast('Login ist noch nicht eingerichtet'); return; }
+  const provider = new fb.AU.GoogleAuthProvider();
+  try {
+    await fb.AU.signInWithPopup(fb.auth, provider);
+    toast('Angemeldet ✓');
+    if (!$('vWelcome').hidden) route();
+  } catch (e) {
+    if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
+      fb.AU.signInWithRedirect(fb.auth, provider);
+    } else if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+      toast('Anmeldung fehlgeschlagen (' + e.code + ')');
+    }
+  }
+}
+document.querySelectorAll('.loginBtn').forEach(b => b.onclick = login);
+
+let logoutArmed = 0;
+$('logoutBtn').onclick = async () => {
+  if (Date.now() - logoutArmed > 3000) { logoutArmed = Date.now(); toast('Nochmal tippen: Abmelden und Buddys von diesem Gerät entfernen'); return; }
+  await fb.AU.signOut(fb.auth);
+  buddies = []; me = '';
+  save('db.me', me); save('db.buddies', buddies);
+  toast('Abgemeldet');
+  location.replace('#');
+  route();
+};
+
 // ---------- Start ----------
 connect();
 route();
+initCloud();
 </script>
 </body>
 </html>
