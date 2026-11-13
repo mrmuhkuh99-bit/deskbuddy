@@ -70,6 +70,13 @@ input[type=range]{width:100%;accent-color:var(--c)}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%) translateY(10px);background:#1e293b;border:1px solid #334155;padding:11px 16px;border-radius:14px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;max-width:90vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%)}
 #net{font-size:12px;color:#64748b;text-align:center;margin-top:18px}
+.check{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:14px;line-height:1.4;cursor:pointer}
+.check input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--c);flex:none}
+.check small{display:block;color:#94a3b8;font-size:12px}
+#pairWait{position:fixed;inset:0;background:rgba(7,9,14,.92);z-index:40;display:flex;align-items:center;justify-content:center;padding:24px}
+#pairWait .card{max-width:360px;text-align:center}
+.spin{width:44px;height:44px;border-radius:50%;border:4px solid #1e293b;border-top-color:var(--c);margin:6px auto 16px;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
 /* QR-Scanner */
 #scanner{position:fixed;inset:0;background:#000;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px}
 #scanner video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
@@ -128,14 +135,16 @@ input[type=range]{width:100%;accent-color:var(--c)}
     <h1>Buddy hinzufügen</h1>
   </header>
   <div class="card">
-    <p class="hint">Den <b>Freunde-Code</b> findest du auf dem Uhr-Screen des DeskBuddys (10 Zeichen) oder als QR-Code einen Screen weiter.
-    Mit dem <b>Besitzer-Code</b> (8 Zeichen) steuerst du deinen eigenen Buddy komplett.</p>
+    <p class="hint">Den Code (10 Zeichen) findest du auf dem Uhr-Screen des DeskBuddys oder als QR-Code einen Screen weiter.</p>
     <div class="row" style="margin-top:12px"><button class="btn" id="scanBtn">📷 QR-Code scannen</button></div>
     <div class="or">oder Code eintippen</div>
     <label for="addCode" style="margin-top:0">Code</label>
     <input type="text" id="addCode" maxlength="14" placeholder="abcde-fghij" autocapitalize="off" autocomplete="off" spellcheck="false">
     <label for="addName">Name für diesen Buddy</label>
     <input type="text" id="addName" maxlength="20" placeholder="z.B. Lisa">
+    <label class="check"><input type="checkbox" id="addOwn">
+      <span>Das ist mein eigener Buddy – koppeln
+      <small>Du bestätigst das am Buddy und kannst ihn dann komplett steuern (Farbe, Timer, …).</small></span></label>
     <div class="row" style="margin-top:14px"><button class="btn main" id="addSave">Hinzufügen</button></div>
   </div>
 </section>
@@ -215,12 +224,24 @@ input[type=range]{width:100%;accent-color:var(--c)}
     <h2>Bearbeiten</h2>
     <label for="editName" style="margin-top:0">Name</label>
     <input type="text" id="editName" maxlength="20">
+    <label class="check" id="unpairOpt" hidden><input type="checkbox" id="unpairShare">
+      <span>Auch Freunde-Code erneuern
+      <small>Zum Verschenken: Alle, die den Buddy bisher hatten, können ihm dann nichts mehr schicken.</small></span></label>
     <div class="row" style="margin-top:12px">
       <button class="btn main" id="editSave">Speichern</button>
       <button class="btn danger" id="editDelete">Entfernen</button>
     </div>
   </div>
 </section>
+
+<div id="pairWait" hidden>
+  <div class="card">
+    <div class="spin"></div>
+    <h2 style="margin-bottom:8px">Koppeln</h2>
+    <p class="hint" style="margin-bottom:14px">Tipp jetzt <b>am Buddy</b> auf das grüne ✓, um die Kopplung zu bestätigen.</p>
+    <div class="row"><button class="btn ghost" id="pairCancel">Abbrechen</button></div>
+  </div>
+</div>
 
 <div id="scanner" hidden>
   <video id="scanVideo" playsinline muted></video>
@@ -345,6 +366,7 @@ function renderList() {
 function openAdd(code) {
   $('addCode').value = code ? pretty(code) : '';
   $('addName').value = '';
+  $('addOwn').checked = false;
   show('vAdd');
   setTimeout(() => (code ? $('addName') : $('addCode')).focus(), 50);
 }
@@ -352,10 +374,15 @@ $('openAdd').onclick = () => go('#add');
 $('addSave').onclick = () => {
   const code = cleanCode($('addCode').value);
   const name = $('addName').value.trim();
-  if (code.length !== 10 && code.length !== 8) { toast('Der Code hat 10 Zeichen (oder 8 für deinen eigenen)'); return; }
+  if (code.length !== 10) { toast('Der Code hat 10 Zeichen'); return; }
   if (!name) { toast('Gib dem Buddy einen Namen'); $('addName').focus(); return; }
-  if (buddies.some(b => b.code === code)) { toast('Den Buddy hast du schon'); return; }
-  const b = { id: Math.random().toString(36).slice(2, 9), name, code, type: code.length === 8 ? 'owner' : 'share' };
+  if ($('addOwn').checked) {
+    if (buddies.some(b => b.type === 'owner' && b.share === code)) { toast('Der ist schon mit dir gekoppelt'); return; }
+    startPair(code, name);
+    return;
+  }
+  if (buddies.some(b => b.code === code || b.share === code)) { toast('Den Buddy hast du schon'); return; }
+  const b = { id: Math.random().toString(36).slice(2, 9), name, code, type: 'share' };
   buddies.push(b);
   persist();
   subscribeBuddy(b);
@@ -446,8 +473,8 @@ function sendMessage(payload) {
   if (!client || !client.connected) { toast('Keine Internetverbindung'); return false; }
   if (b.type === 'share') {
     client.publish(shareTopic(b.code) + 'msg', payload, { qos: 1, retain: true });
-  } else if (st && st.share) {
-    client.publish(shareTopic(st.share) + 'msg', payload, { qos: 1, retain: true });
+  } else if (b.share || (st && st.share)) {
+    client.publish(shareTopic(b.share || st.share) + 'msg', payload, { qos: 1, retain: true });
   } else {
     client.publish(ownerTopic(b.code) + 'cmd', 'say?' + payload, { qos: 1 });
   }
@@ -496,10 +523,52 @@ $('shareBtn').onclick = async () => {
   } catch (e) {}
 };
 
-// Bearbeiten / Entfernen
+// ---------- Koppeln ----------
+// App -> deskbuddy/s/<code>/pair  "name=…&nonce=…"
+// Buddy zeigt "… möchte koppeln?" und antwortet nach ✓ auf deskbuddy/s/<code>/pairres/<nonce>
+let pairing = null;
+function startPair(share, name) {
+  if (!client || !client.connected) { toast('Keine Internetverbindung'); return; }
+  const nonce = Math.random().toString(36).slice(2, 10);
+  const resTopic = shareTopic(share) + 'pairres/' + nonce;
+  pairing = { share, name, resTopic, timer: setTimeout(() => finishPair('timeout'), 65000) };
+  client.subscribe(resTopic, () => client.publish(shareTopic(share) + 'pair', q({ name: me, nonce })));
+  $('pairWait').hidden = false;
+}
+function finishPair(status, params) {
+  if (!pairing) return;
+  const p = pairing; pairing = null;
+  clearTimeout(p.timer);
+  if (client) client.unsubscribe(p.resTopic);
+  $('pairWait').hidden = true;
+  if (status === 'ok' && params && params.get('key')) {
+    buddies = buddies.filter(b => !(b.type === 'share' && b.code === p.share));   // Freundes-Eintrag ersetzen
+    const b = { id: Math.random().toString(36).slice(2, 9), name: p.name, code: params.get('key'),
+                share: params.get('share') || p.share, type: 'owner' };
+    buddies.push(b);
+    persist();
+    subscribeBuddy(b);
+    client.publish(ownerTopic(b.code) + 'cmd', 'ping');
+    toast('Gekoppelt 🎉');
+    location.replace('#b-' + b.id);
+  } else if (status === 'taken') {
+    toast('Der Buddy ist schon gekoppelt. Der Besitzer muss ihn erst entkoppeln.');
+  } else if (status === 'denied') {
+    toast('Am Buddy abgelehnt');
+  } else if (status === 'timeout') {
+    toast('Keine Antwort – ist der Buddy online?');
+  }
+}
+$('pairCancel').onclick = () => finishPair('cancel');
+
+// Bearbeiten / Entfernen / Entkoppeln
 $('bMenu').onclick = () => {
   $('editPart').hidden = !$('editPart').hidden;
   $('editName').value = current.name;
+  const own = current.type === 'owner';
+  $('unpairOpt').hidden = !own;
+  $('unpairShare').checked = false;
+  $('editDelete').textContent = own ? 'Entkoppeln' : 'Entfernen';
   if (!$('editPart').hidden) $('editPart').scrollIntoView({ behavior: 'smooth' });
 };
 $('editSave').onclick = () => {
@@ -509,11 +578,21 @@ $('editSave').onclick = () => {
 };
 let delArmed = 0;
 $('editDelete').onclick = () => {
-  if (Date.now() - delArmed > 3000) { delArmed = Date.now(); toast('Nochmal tippen zum Entfernen'); return; }
+  const own = current.type === 'owner';
+  if (Date.now() - delArmed > 3000) {
+    delArmed = Date.now();
+    toast(own ? 'Nochmal tippen: Buddy entkoppeln' : 'Nochmal tippen zum Entfernen');
+    return;
+  }
+  if (own) {
+    if (!client || !client.connected) { toast('Keine Internetverbindung'); return; }
+    // retained: kommt auch an, wenn der Buddy gerade aus ist
+    client.publish(ownerTopic(current.code) + 'cmd', 'unpair?share=' + ($('unpairShare').checked ? '1' : '0'), { qos: 1, retain: true });
+  }
   unsubscribeBuddy(current);
   buddies = buddies.filter(b => b.id !== current.id);
   persist();
-  toast('Entfernt');
+  toast(own ? 'Entkoppelt' : 'Entfernt');
   location.replace('#');
 };
 
@@ -541,6 +620,11 @@ function connect() {
   client.on('offline', () => { $('net').textContent = 'Keine Verbindung zum Server…'; refresh(); });
   client.on('message', (topic, payload) => {
     const txt = payload.toString();
+    if (pairing && topic === pairing.resTopic) {
+      const params = new URLSearchParams(txt);
+      finishPair(params.get('status'), params);
+      return;
+    }
     for (const b of buddies) {
       const s = status[b.id] || (status[b.id] = {});
       if (b.type === 'owner' && topic === ownerTopic(b.code) + 'state') {
@@ -620,7 +704,7 @@ function stopScan() {
 function handleScan(txt) {
   const m = txt.match(/#add=([a-z0-9-]+)/i);
   const code = cleanCode(m ? m[1] : txt);
-  if (code.length !== 10 && code.length !== 8) return false;
+  if (code.length !== 10) return false;
   stopScan();
   if (navigator.vibrate) navigator.vibrate(60);
   $('addCode').value = pretty(code);
