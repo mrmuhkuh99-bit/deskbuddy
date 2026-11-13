@@ -71,6 +71,10 @@ input[type=range]{width:100%;accent-color:var(--c)}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%) translateY(10px);background:#1e293b;border:1px solid #334155;padding:11px 16px;border-radius:14px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;max-width:90vw;text-align:center}
 #toast.show{opacity:1;transform:translateX(-50%)}
 #net{font-size:12px;color:#64748b;text-align:center;margin-top:18px}
+.wifi{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#020617;border:1px solid #1e293b;border-radius:12px;margin-bottom:8px}
+.wifi span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wifi small{color:#22c55e;font-size:12px;flex:none}
+.wifi button{flex:none;background:none;border:0;color:#64748b;font-size:18px;width:32px;height:32px;border-radius:8px}
 .check{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:14px;line-height:1.4;cursor:pointer}
 .check input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--c);flex:none}
 .check small{display:block;color:#94a3b8;font-size:12px}
@@ -209,6 +213,11 @@ input[type=range]{width:100%;accent-color:var(--c)}
       <button class="btn" data-style="0">Klassisch</button><button class="btn" data-style="1">Rund</button><button class="btn" data-style="2">Minimal</button>
     </div></div>
     <div class="card"><h2>Helligkeit</h2><input type="range" id="bright" min="10" max="255"></div>
+    <div class="card"><h2>WLANs</h2>
+      <p class="hint" style="margin-bottom:10px">Er merkt sich bis zu 5 WLANs und nimmt automatisch das, das gerade da ist.</p>
+      <div id="wifiList"></div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="wifiAdd">+ Neues WLAN einrichten</button></div>
+    </div>
     <div class="card"><h2>Nachtruhe</h2>
       <p class="hint" style="margin-bottom:10px">In dieser Zeit schläft er bis morgens (Antippen weckt ihn kurz) und wird gedimmt.</p>
       <div class="row">
@@ -491,6 +500,7 @@ function paintBuddy() {
   document.querySelectorAll('[data-acc]').forEach(x => x.classList.toggle('on', +x.dataset.acc === (st.acc || 0)));
   if (document.activeElement !== $('bright')) $('bright').value = st.bright;
   if (document.activeElement !== $('tMin')) $('tMin').value = st.min;
+  paintWifi(st);
   if (st.nStart !== undefined && !nightDirty) {
     $('nStart').value = minToTime(st.nStart); $('nEnd').value = minToTime(st.nEnd);
     $('nDim').value = st.nDim; paintDim();
@@ -551,6 +561,38 @@ document.querySelectorAll('[data-style]').forEach(x => x.onclick = () => {
 });
 document.querySelectorAll('[data-cmd]').forEach(x => x.onclick = () => { cmd(x.dataset.cmd); toast('Gesendet'); });
 let brT; $('bright').oninput = e => { clearTimeout(brT); brT = setTimeout(() => cmd('set?bright=' + e.target.value), 150); };
+// WLANs
+let wifiDelArmed = '';
+function paintWifi(st) {
+  const box = $('wifiList');
+  const list = st.wifi || [];
+  const key = JSON.stringify([list, st.wifiCur, wifiDelArmed]);
+  if (box.dataset.key === key) return;            // nur neu zeichnen, wenn sich was ändert
+  box.dataset.key = key;
+  box.innerHTML = list.length ? '' : '<p class="hint">Noch kein WLAN gespeichert.</p>';
+  list.forEach(ssid => {
+    const row = document.createElement('div');
+    row.className = 'wifi';
+    row.innerHTML = '<span></span>' + (ssid === st.wifiCur ? '<small>verbunden</small>' : '') + '<button aria-label="Entfernen">✕</button>';
+    row.querySelector('span').textContent = '📶 ' + ssid;
+    const del = row.querySelector('button');
+    if (wifiDelArmed === ssid) { del.textContent = '🗑️'; del.style.color = '#fca5a5'; }
+    del.onclick = () => {
+      if (wifiDelArmed !== ssid) { wifiDelArmed = ssid; paintWifi(st); toast('Nochmal tippen zum Entfernen'); setTimeout(() => { if (wifiDelArmed === ssid) { wifiDelArmed = ''; paintWifi(st); } }, 3000); return; }
+      wifiDelArmed = '';
+      if (ssid === st.wifiCur) toast('Entfernt – er bleibt verbunden, bis er neu startet');
+      else toast('Entfernt');
+      st.wifi = list.filter(x => x !== ssid); paintWifi(st);
+      cmd('set?wifiDel=' + encodeURIComponent(ssid));
+    };
+    box.appendChild(row);
+  });
+}
+$('wifiAdd').onclick = () => {
+  cmd('wifiSetup');
+  toast('Am Buddy ist jetzt das Setup-WLAN „DeskBuddy-Setup“ offen');
+};
+
 // Nachtruhe
 let nightDirty = false;
 function minToTime(m) { return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
