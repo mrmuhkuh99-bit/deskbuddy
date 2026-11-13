@@ -208,7 +208,6 @@ input[type=range]{width:100%;accent-color:var(--c)}
       <div class="row"><button class="btn" id="shareBtn">Einladung teilen</button></div>
     </div>
     <div class="card"><h2>Augenfarbe</h2><div class="row" id="swatches"></div></div>
-    <div class="card"><h2>Accessoire</h2><div class="moods" id="accs"></div></div>
     <div class="card"><h2>Stil</h2><div class="row">
       <button class="btn" data-style="0">Klassisch</button><button class="btn" data-style="1">Rund</button><button class="btn" data-style="2">Minimal</button>
     </div></div>
@@ -308,13 +307,6 @@ const MOODS = [
   { id: 'cool',        e: '😎', t: 'Cool' },
   { id: 'tired',       e: '😴', t: 'Müde' },
   { id: 'normal',      e: '🙂', t: 'Normal' }
-];
-const ACCS = [
-  { id: 0, e: '✖️', t: 'Nichts' },
-  { id: 1, e: '🧶', t: 'Mütze' },
-  { id: 2, e: '🥳', t: 'Partyhut' },
-  { id: 3, e: '🕶️', t: 'Sonnenbrille' },
-  { id: 4, e: '👑', t: 'Krone' }
 ];
 
 const $ = id => document.getElementById(id);
@@ -453,18 +445,6 @@ function paintMoods() {
   if ($('send')) paintSend();
 }
 
-ACCS.forEach(a => {
-  const b = document.createElement('button');
-  b.className = 'mood'; b.dataset.acc = a.id;
-  b.innerHTML = '<b>' + a.e + '</b>' + a.t;
-  b.onclick = () => {
-    const s = status[current.id] || {};
-    if (s.state) { s.state.acc = a.id; paintBuddy(); }
-    cmd('set?acc=' + a.id);
-  };
-  $('accs').appendChild(b);
-});
-
 COLORS.forEach(c => {
   const b = document.createElement('button');
   b.className = 'sw'; b.dataset.c = c; b.style.background = '#' + c;
@@ -497,7 +477,6 @@ function paintBuddy() {
   $('shareCode').textContent = st.share ? pretty(st.share) : '–';
   document.querySelectorAll('[data-style]').forEach(x => x.classList.toggle('on', +x.dataset.style === st.style));
   document.querySelectorAll('.sw').forEach(x => x.classList.toggle('on', x.dataset.c === st.color));
-  document.querySelectorAll('[data-acc]').forEach(x => x.classList.toggle('on', +x.dataset.acc === (st.acc || 0)));
   if (document.activeElement !== $('bright')) $('bright').value = st.bright;
   if (document.activeElement !== $('tMin')) $('tMin').value = st.min;
   paintWifi(st);
