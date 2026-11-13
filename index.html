@@ -177,10 +177,10 @@ input[type=range]{width:100%;accent-color:var(--c)}
     <h2>Gesicht</h2>
     <div class="moods" id="moods"></div>
     <label for="msg">Nachricht</label>
-    <textarea id="msg" maxlength="80" placeholder="Schreib was Liebes…"></textarea>
+    <textarea id="msg" maxlength="80" placeholder="Schreib was Liebes… (oder nur das Gesicht schicken)"></textarea>
     <div class="counter"><span id="msgCount">0</span>/80</div>
     <div class="row" style="margin-top:8px">
-      <button class="btn main" id="send">Senden</button>
+      <button class="btn main" id="send">Gesicht senden</button>
       <button class="btn f" id="hearts" aria-label="Herzen schicken">❤️</button>
     </div>
   </div>
@@ -386,7 +386,10 @@ MOODS.forEach(m => {
   b.onclick = () => { mood = m.id; paintMoods(); };
   $('moods').appendChild(b);
 });
-function paintMoods() { document.querySelectorAll('.mood').forEach(b => b.classList.toggle('on', b.dataset.mood === mood)); }
+function paintMoods() {
+  document.querySelectorAll('.mood').forEach(b => b.classList.toggle('on', b.dataset.mood === mood));
+  if ($('send')) paintSend();
+}
 
 COLORS.forEach(c => {
   const b = document.createElement('button');
@@ -402,7 +405,7 @@ function openBuddy(b) {
   current = b;
   mood = 'happy'; paintMoods();
   $('bName').textContent = b.name;
-  $('msg').value = ''; $('msgCount').textContent = '0';
+  $('msg').value = ''; $('msgCount').textContent = '0'; paintSend();
   $('editPart').hidden = true;
   $('ownerPart').hidden = b.type !== 'owner';
   paintBuddy();
@@ -426,7 +429,13 @@ function paintBuddy() {
   $('tTime').textContent = (h ? h + ':' : '') + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + (st.running ? ' ▶' : ' ⏸');
 }
 
-$('msg').oninput = () => { $('msgCount').textContent = $('msg').value.length; };
+function paintSend() {
+  const hasText = $('msg').value.trim().length > 0;
+  $('send').textContent = hasText ? 'Senden' : 'Gesicht senden';
+  $('send').disabled = !hasText && mood === 'normal';
+  $('send').style.opacity = $('send').disabled ? .45 : 1;
+}
+$('msg').oninput = () => { $('msgCount').textContent = $('msg').value.length; paintSend(); };
 
 function q(obj) { return Object.entries(obj).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&'); }
 
@@ -448,8 +457,9 @@ function sendMessage(payload) {
 
 $('send').onclick = () => {
   const t = $('msg').value.trim();
-  if (!t) { toast('Schreib erst was'); $('msg').focus(); return; }
-  if (sendMessage(q({ from: me, t, mood }))) { $('msg').value = ''; $('msgCount').textContent = '0'; }
+  if (!t && mood === 'normal') { toast('Schreib was oder wähl ein Gesicht'); return; }
+  const payload = t ? q({ from: me, t, mood }) : q({ from: me, mood });   // ohne Text = nur Gesicht
+  if (sendMessage(payload)) { $('msg').value = ''; $('msgCount').textContent = '0'; paintSend(); }
 };
 $('hearts').onclick = () => sendMessage(q({ a: 'hearts', from: me }));
 
